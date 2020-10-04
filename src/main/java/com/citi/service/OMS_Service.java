@@ -1,5 +1,12 @@
 package com.citi.service;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.security.Timestamp;
+import java.sql.SQLException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -30,6 +37,20 @@ import com.citi.entity.OrderGenerator;
 import com.citi.entity.PendingTable;
 import com.citi.entity.RejectedTable;
 
+import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletResponse;
+ 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CreationHelper;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+
 @Service
 public class OMS_Service implements IBidService, IOfferService 
 {
@@ -58,8 +79,8 @@ public class OMS_Service implements IBidService, IOfferService
 	private static PendingDAO pendingdao;
 	
 	
-	static int bidcount=0;
-	static int offercount=0;
+	public static int bidcount=0;
+	public static int offercount=0;
 
 	//apply Mapping
 	public static double ltp=0;
@@ -213,6 +234,126 @@ public class OMS_Service implements IBidService, IOfferService
 	}
 	
 	
+	public void export_to_excel()
+	
+	{
+		Date d=orderdao.findById(1).get().getDate();
+		DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh.mm.ss a");  
+		String strDate = dateFormat.format(d);  
+		
+		String efp = strDate+".xlsx";
+		
+		System.out.println(efp);
+		String excelFilePath = efp;
+		
+		List<OrderGenerator> result = new ArrayList<>();
+		result = orderdao.findAll();
+		
+		XSSFWorkbook workbook = new XSSFWorkbook();
+        XSSFSheet sheet = workbook.createSheet("RandomOrders");
+        
+        writeHeaderLine(sheet);
+        FileOutputStream outputStream;
+		
+		
+        try {
+        	outputStream = new FileOutputStream(excelFilePath);
+			writeDataLines(result, workbook, sheet);
+			workbook.write(outputStream);
+			workbook.close();
+		} 
+        
+        catch (FileNotFoundException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+        catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+        catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    
+ 	}
+	private void writeHeaderLine(XSSFSheet sheet) {
+		 
+        Row headerRow = sheet.createRow(0);
+ 
+        Cell headerCell = headerRow.createCell(0);
+        headerCell.setCellValue("Order Id");
+ 
+        headerCell = headerRow.createCell(1);
+        headerCell.setCellValue("Order Type");
+ 
+        headerCell = headerRow.createCell(2);
+        headerCell.setCellValue("Bid/Offer");
+ 
+        headerCell = headerRow.createCell(3);
+        headerCell.setCellValue("Price");
+ 
+        headerCell = headerRow.createCell(4);
+        headerCell.setCellValue("Quantity");
+        
+        headerCell = headerRow.createCell(5);
+        headerCell.setCellValue("Aon");
+        
+        headerCell = headerRow.createCell(6);
+        headerCell.setCellValue("Timestamp");
+    }
+	
+	private void writeDataLines(List<OrderGenerator> result, XSSFWorkbook workbook,
+            XSSFSheet sheet) throws SQLException {
+        int rowCount = 1;
+        
+        for(int i=0; i<result.size();i++)
+         {
+        	
+        	int oid = result.get(i).orderId;
+        	String otype = result.get(i).orderType;
+        	String bo = result.get(i).bid_offer;
+        	double p = result.get(i).price;
+        	int q = result.get(i).quantity;
+        	String an = result.get(i).aon;
+        	Date d = result.get(i).getDate();
+        	
+    
+            Row row = sheet.createRow(rowCount++);
+ 
+            int columnCount = 0;
+            Cell cell = row.createCell(columnCount++);
+            cell.setCellValue(oid);
+ 
+            cell = row.createCell(columnCount++);
+            cell.setCellValue(otype);
+ 
+            cell = row.createCell(columnCount++);
+            cell.setCellValue(bo);
+            
+            cell = row.createCell(columnCount++);
+            cell.setCellValue(p);
+            
+            cell = row.createCell(columnCount++);
+            cell.setCellValue(q);
+            
+            cell = row.createCell(columnCount++);
+            cell.setCellValue(an);
+            
+                  
+            CellStyle cellStyle = workbook.createCellStyle();
+            CreationHelper creationHelper = workbook.getCreationHelper();
+            cellStyle.setDataFormat(creationHelper.createDataFormat().getFormat("yyyy-MM-dd HH:mm:ss"));
+            cell.setCellStyle(cellStyle);
+            
+            cell = row.createCell(columnCount++);
+            cell.setCellValue(String.valueOf(d));
+             
+        }
+    }
+ 
+
+	
 	public void OrderBook()
 	{
 		List<OrderGenerator> order = orderdao.findAll();
@@ -259,7 +400,8 @@ public class OMS_Service implements IBidService, IOfferService
 					bid.add(temp);
 					bidid++;
 					bidcount++;
-					
+					Collections.sort(bid,Comparator.comparingDouble(BidTable::getPrice).reversed());
+
 					}
 					else
 					{
@@ -285,6 +427,8 @@ public class OMS_Service implements IBidService, IOfferService
 					bid.add(temp);
 					bidid++;
 					bidcount++;
+					Collections.sort(bid,Comparator.comparingDouble(BidTable::getPrice).reversed());
+
 					System.out.println("**********************************************yamuna****"+ temp.getAon());
 					OrderMatching(bid, offer,"bid", temp.getAon());
 				}
@@ -303,6 +447,9 @@ public class OMS_Service implements IBidService, IOfferService
 					offer.add(temp);
 					offercount++;
 					offerid++;
+					
+					Collections.sort(offer,Comparator.comparingDouble(OfferTable::getPrice));
+
 					}
 					else
 					{
@@ -328,7 +475,8 @@ public class OMS_Service implements IBidService, IOfferService
 					offer.add(temp);
 					offerid++;
 					offercount++;
-					
+
+					Collections.sort(offer,Comparator.comparingDouble(OfferTable::getPrice));
 					OrderMatching(bid, offer, "offer",temp.aon);
 				}
 				
@@ -339,8 +487,6 @@ public class OMS_Service implements IBidService, IOfferService
 		
 		}
 		
-		//put in pending
-		//PendingTable pendingtable=new PendingTable();
 		
 		for(int i=0;i<bid.size();i++)
 		{
@@ -428,7 +574,7 @@ public class OMS_Service implements IBidService, IOfferService
 						 
 						 if(o.aon.equals("Yes"))
 						 {
-	//Harish test case changes		// if((offer.get(offer.size() - 1).quantity-qty_offers)>o.quantity) //
+	//Harish test case changes		// if((offer.get(0).quantity-qty_offers)>o.quantity) //
 							 if((bid.get(bid.size() - 1).quantity-qty_offers)>o.quantity)
 							 {
 								 qty_offers=qty_offers+ o.quantity;
@@ -529,15 +675,15 @@ public class OMS_Service implements IBidService, IOfferService
 
 			while (i.hasNext()) {
 				BidTable bi = i.next();
-				if (offer.get(offer.size() - 1).price <= bi.price) {
+				if (offer.get(0).price <= bi.price) {
 
-					if (offer.get(offer.size() - 1).quantity == bi.quantity) {
+					if (offer.get(0).quantity == bi.quantity) {
 						System.out.println(
-								"Offer id" + offer.get(offer.size() - 1).offerId + "matched w bid id: " + bi.bidId);
+								"Offer id" + offer.get(0).offerId + "matched w bid id: " + bi.bidId);
 						
 						ExecutedTable executed=new ExecutedTable();
 						executed.setBidId(bi.bidId);
-						executed.setOfferId(offer.get(offer.size() - 1).offerId);
+						executed.setOfferId(offer.get(0).offerId);
 						executed.setPrice(bi.price);
 						executed.setQuantity(bi.quantity);
 						executed.setDate(new Date());
@@ -546,7 +692,7 @@ public class OMS_Service implements IBidService, IOfferService
 						ltq=bi.quantity;
 						
 						i.remove();
-						offer.remove(offer.size() - 1);
+						offer.remove(0);
 						bidcount--;
 						offercount--;
 						
@@ -554,18 +700,18 @@ public class OMS_Service implements IBidService, IOfferService
 						//put in executed list
 						break;
 
-					} else if (offer.get(offer.size() - 1).quantity > bi.quantity ) {
+					} else if (offer.get(0).quantity > bi.quantity ) {
 						 int qty_bid=0;
 
 
 						for(BidTable b:bid){
 							
-						 if(offer.get(offer.size() - 1).price<=b.price)
+						 if(offer.get(0).price<=b.price)
 							{
 							 
 							 if(b.aon.equals("Yes"))
 							 {
-								 if((offer.get(offer.size() - 1).quantity-qty_bid)>=b.quantity)
+								 if((offer.get(0).quantity-qty_bid)>=b.quantity)
 								 {
 									 qty_bid=qty_bid+ b.quantity;
 									 
@@ -582,39 +728,39 @@ public class OMS_Service implements IBidService, IOfferService
 //							 
 					//}		 
 //							 ****
-//							 if((offer.get(offer.size() - 1).quantity>b.quantity ))
+//							 if((offer.get(0).quantity>b.quantity ))
 //							 {
 //								 qty_bid+=b.quantity;
 //							 }
-//							 else if(offer.get(offer.size() - 1).quantity<b.quantity && b.aon.equals("No"))
+//							 else if(offer.get(0).quantity<b.quantity && b.aon.equals("No"))
 //							 {
-//								 qty_bid+=offer.get(offer.size() - 1).quantity;
+//								 qty_bid+=offer.get(0).quantity;
 //							 }
-//							 else if(offer.get(offer.size() - 1).quantity==b.quantity)
+//							 else if(offer.get(0).quantity==b.quantity)
 //							 {
-//								 qty_bid+=offer.get(offer.size() - 1).quantity;
+//								 qty_bid+=offer.get(0).quantity;
 //							 }
 
 							 
 							
 						 
-						 if(qty_bid<offer.get(offer.size() - 1).quantity )
+						 if(qty_bid<offer.get(0).quantity )
 						 {
 //						 System.out.println("Bid id: "+bid.get(bid.size() - 1).bidId+"rejected since the quantity can't be satisfied");
-						 System.out.println(" No match found for Offer id: " + offer.get(offer.size() - 1).offerId
+						 System.out.println(" No match found for Offer id: " + offer.get(0).offerId
 									+ " Entering into Offer pending list");
-//						 offer.remove(offer.get(offer.size() - 1));
+//						 offer.remove(offer.get(0));
 //						 put in rejected orders
 //						 offercount--;
 						 }
 						 else{
 						System.out.println("Partial execution of offer w bid id: " + bi.bidId);
-						int qty_rem = offer.get(offer.size() - 1).quantity - bi.quantity;
-						offer.get(offer.size() - 1).quantity = qty_rem;
+						int qty_rem = offer.get(0).quantity - bi.quantity;
+						offer.get(0).quantity = qty_rem;
 						
 						ExecutedTable executed=new ExecutedTable();
 						executed.setBidId(bi.bidId);
-						executed.setOfferId(offer.get(offer.size() - 1).offerId);
+						executed.setOfferId(offer.get(0).offerId);
 						executed.setPrice(bi.price);
 						executed.setQuantity(bi.quantity);
 						executed.setDate(new Date());
@@ -630,24 +776,24 @@ public class OMS_Service implements IBidService, IOfferService
 
 					}
 			
-					else if (offer.get(offer.size() - 1).quantity < bi.getQuantity() && bi.aon.equals("No")) {
+					else if (offer.get(0).quantity < bi.getQuantity() && bi.aon.equals("No")) {
 //						System.out.println("loop :");
 						System.out.println(
-								"***Here 2 Offer id" + offer.get(offer.size() - 1).offerId + "matched w bid id: " + bi.bidId);
-						int qty_rem = bi.getQuantity() - offer.get(offer.size() - 1).quantity;
+								"***Here 2 Offer id" + offer.get(0).offerId + "matched w bid id: " + bi.bidId);
+						int qty_rem = bi.getQuantity() - offer.get(0).quantity;
 						bi.setQuantity(qty_rem);
 
 						ExecutedTable executed=new ExecutedTable();
 						executed.setBidId(bi.bidId);
-						executed.setOfferId(offer.get(offer.size() - 1).offerId);
-						executed.setPrice(bi.price);
-						executed.setQuantity(offer.get(offer.size() - 1).quantity);
+						executed.setOfferId(offer.get(0).offerId);
+						executed.setPrice(offer.get(0).price);
+						executed.setQuantity(offer.get(0).quantity);
 						executed.setDate(new Date());
 						executeddao.save(executed);
 						ltp=bi.price;
-						ltq=offer.get(offer.size() - 1).quantity;
+						ltq=offer.get(0).quantity;
 						
-						offer.remove(offer.size() - 1);
+						offer.remove(0);
 						offercount--;
 						//put in executed list
 						flag1 = 1;
@@ -659,14 +805,14 @@ public class OMS_Service implements IBidService, IOfferService
 //					}
 					
 				}
-					else if (offer.get(offer.size() - 1).quantity < bi.getQuantity() && bi.aon.equals("Yes")) 
+					else if (offer.get(0).quantity < bi.getQuantity() && bi.aon.equals("Yes")) 
 					{
 						System.out.println("haha");
 						continue;
 					}
 					
 //				if (flag1 == 0) {
-//					System.out.println("No match found for offer id: " + offer.get(offer.size() - 1).offerId
+//					System.out.println("No match found for offer id: " + offer.get(0).offerId
 //							+ " Entering into offer pending list");
 //				}
 			
@@ -840,6 +986,7 @@ public class OMS_Service implements IBidService, IOfferService
 							rejected.setOrderType(bid.get(bid.size() - 1).orderType);
 							rejected.setPrice(bid.get(bid.size() - 1).price);
 							rejected.setQuantity(bid.get(bid.size() - 1).quantity);
+							rejected.setAon(bid.get(bid.size() - 1).aon);
 							rejecteddao.save(rejected);
 							
 							bid.remove(bid.size() - 1);
@@ -912,7 +1059,7 @@ public class OMS_Service implements IBidService, IOfferService
 					else if (bid.get(bid.size() - 1).quantity < of_min.getQuantity() && of_min.aon.equals("Yes") )
 					{
 						
-						System.out.println("dei dei 1 "+i.hasNext()+"i="+i.toString());
+						//System.out.println("dei dei 1 "+i.hasNext()+"i="+i.toString());
 						 
 //						i.next();
 						if(i.hasNext()==false)
@@ -920,21 +1067,24 @@ public class OMS_Service implements IBidService, IOfferService
 							
 							System.out.println("No matches found, rejecting");
 //							System.out.println("in has next\n");
-//							offer.remove(offer.size() - 1);
+//							offer.remove(0);
 //							offercount--;
 		
-		/*					RejectedTable rejected =new RejectedTable();
-		change Lala			rejected.setBidId(bid.get(bid.size() - 1).bidId);
-							
+						RejectedTable rejected =new RejectedTable();
+													
 							rejected.setQuantity(bid.get(bid.size()-1).quantity);
 							rejected.setDate(new Date());
+							rejected.setOrderType(bid.get(bid.size()-1).getOrderType());
+							rejected.setAon((bid.get(bid.size()-1).aon));
+							rejected.setPrice(bid.get(bid.size()-1).price);
+							rejected.setBid_offer("bid");
+							rejecteddao.save(rejected);
 							
-							executeddao.save(executed);
-							ltp=of_min.price;
-							ltq=bid.get(bid.size()-1).quantity;
+				//			ltp=of_min.price;
+				//			ltq=bid.get(bid.size()-1).quantity;
 							
 							bid.remove(bid.size() - 1);
-			*/	//			bidcount--;
+							bidcount--;
 							break;
 						
 						}
@@ -960,7 +1110,7 @@ public class OMS_Service implements IBidService, IOfferService
 				aonFunc(bid, offer, "offer");
 			}
 			//Limit offer without aon
-			else if (offer.get(offer.size() - 1).orderType.equals("limit"))// && aon.equals("No"))
+			else if (offer.get(0).orderType.equals("limit"))// && aon.equals("No"))
 			{
 				int flag1 = 0;
 				
@@ -970,66 +1120,66 @@ public class OMS_Service implements IBidService, IOfferService
 
 				while (i.hasNext()) {
 					BidTable bi = i.next();
-					if (offer.get(offer.size() - 1).price <= bi.price) {
+					if (offer.get(0).price <= bi.price) {
 
-						if (offer.get(offer.size() - 1).quantity == bi.quantity) {
+						if (offer.get(0).quantity == bi.quantity) {
 							
 							System.out.println(
-									"Offer id" + offer.get(offer.size() - 1).offerId + "matched w bid id: " + bi.bidId);
+									"Offer id" + offer.get(0).offerId + "matched w bid id: " + bi.bidId);
 							flag1 = 1;
 							
 							ExecutedTable executed=new ExecutedTable();
 							executed.setBidId(bi.bidId);
-							executed.setOfferId(offer.get(offer.size() - 1).offerId);
-							executed.setPrice(offer.get(offer.size() - 1).price);
-							executed.setQuantity((offer.get(offer.size() - 1)).quantity);
+							executed.setOfferId(offer.get(0).offerId);
+							executed.setPrice(offer.get(0).price);
+							executed.setQuantity((offer.get(0)).quantity);
 							executed.setDate(new Date());
 							executeddao.save(executed);
 							
 							ltp=bi.price;
-							ltq=offer.get(offer.size() - 1).quantity;
+							ltq=offer.get(0).quantity;
 							
 							i.remove();
-							offer.remove(offer.size() - 1);
+							offer.remove(0);
 							bidcount--;
 							offercount--;
 							break;
 
-						} else if (offer.get(offer.size() - 1).quantity > bi.quantity && bi.aon.equals("No")) {
+						} else if (offer.get(0).quantity > bi.quantity && bi.aon.equals("No")) {
 
 							System.out.println("Partial execution of offer w bid id: " + bi.bidId);
-							int qty_rem = offer.get(offer.size() - 1).quantity - bi.quantity;
-							offer.get(offer.size() - 1).quantity = qty_rem;
+							int qty_rem = offer.get(0).quantity - bi.quantity;
+							offer.get(0).quantity = qty_rem;
 							
 							ExecutedTable executed=new ExecutedTable();
 							executed.setBidId(bi.bidId);
-							executed.setOfferId(offer.get(offer.size() - 1).offerId);
-							executed.setPrice(offer.get(offer.size() - 1).price);
+							executed.setOfferId(offer.get(0).offerId);
+							executed.setPrice(offer.get(0).price);
 							executed.setQuantity(bi.quantity);
 							executed.setDate(new Date());
 							executeddao.save(executed);
 							
-							ltp=offer.get(offer.size() - 1).price;
+							ltp=offer.get(0).price;
 							ltq=bi.quantity;
 												
 							i.remove();
 							bidcount--;
 						} 
-						else if (offer.get(offer.size() - 1).quantity > bi.quantity && bi.aon.equals("Yes")) {
+						else if (offer.get(0).quantity > bi.quantity && bi.aon.equals("Yes")) {
 
 							System.out.println("Partial Execution of offer id" + offer.get(offer.size()-1).offerId + "w bid id: " + bi.bidId);
-							int qty_rem = offer.get(offer.size() - 1).quantity - bi.quantity;
-							offer.get(offer.size() - 1).quantity = qty_rem;
+							int qty_rem = offer.get(0).quantity - bi.quantity;
+							offer.get(0).quantity = qty_rem;
 							
 							ExecutedTable executed=new ExecutedTable();
 							executed.setBidId(bi.bidId);
-							executed.setOfferId(offer.get(offer.size() - 1).offerId);
-							executed.setPrice(offer.get(offer.size() - 1).price);
+							executed.setOfferId(offer.get(0).offerId);
+							executed.setPrice(offer.get(0).price);
 							executed.setQuantity(bi.quantity);
 							executed.setDate(new Date());
 							executeddao.save(executed);
 							
-							ltp=offer.get(offer.size() - 1).price;
+							ltp=offer.get(0).price;
 							ltq=bi.quantity;
 							
 							i.remove();
@@ -1037,23 +1187,23 @@ public class OMS_Service implements IBidService, IOfferService
 		
 						} 
 						
-						else if (offer.get(offer.size() - 1).quantity < bi.quantity && bi.aon.equals("No")) {
+						else if (offer.get(0).quantity < bi.quantity && bi.aon.equals("No")) {
 							System.out.println();
 							int qty_rem = bi.quantity - offer.get(bid.size() - 1).quantity;
 							bi.quantity = qty_rem;
 							
 							ExecutedTable executed=new ExecutedTable();
 							executed.setBidId(bi.bidId);
-							executed.setOfferId(offer.get(offer.size() - 1).offerId);
-							executed.setPrice(offer.get(offer.size() - 1).price);
-							executed.setQuantity((offer.get(offer.size() - 1)).quantity);
+							executed.setOfferId(offer.get(0).offerId);
+							executed.setPrice(offer.get(0).price);
+							executed.setQuantity((offer.get(0)).quantity);
 							executed.setDate(new Date());
 							executeddao.save(executed);
 							
-							ltp=offer.get(offer.size() - 1).price;
-							ltq=offer.get(offer.size() - 1).quantity;
+							ltp=offer.get(0).price;
+							ltq=offer.get(0).quantity;
 							
-							offer.remove(offer.size() - 1);
+							offer.remove(0);
 							offercount--;
 							flag1 = 1;
 							break;
@@ -1064,7 +1214,7 @@ public class OMS_Service implements IBidService, IOfferService
 				}
 
 				if (flag1 == 0) {
-					System.out.println("No match found for offer id: " + offer.get(offer.size() - 1).offerId
+					System.out.println("No match found for offer id: " + offer.get(0).offerId
 							+ " Entering into offer pending list");
 
 				}
@@ -1072,10 +1222,10 @@ public class OMS_Service implements IBidService, IOfferService
 			}
 
 	/////////////		// market offer
-			else if (offer.get(offer.size() - 1).orderType.equals("market")) {
+			else if (offer.get(0).orderType.equals("market")) {
 				int flag1 = 0;
 				
-//				int qty_rem=offer.get(offer.size() - 1).quantity;
+//				int qty_rem=offer.get(0).quantity;
 //				Bid bid_max = Collections.max(bid, Comparator.comparing(s -> s.getPrice()));//set bid max at first
 //				Collections.sort(bid,Comparator.comparingDouble(Bid::getPrice).reversed());
 				List<BidTable> bid_desc=new ArrayList<>();
@@ -1089,22 +1239,22 @@ public class OMS_Service implements IBidService, IOfferService
 				while (i.hasNext()) {
 					BidTable bid_max=i.next();
 //					System.out.println("Bid max= "+bid_max);
-					if (offer.get(offer.size() - 1).quantity == bid_max.getQuantity()) {
+					if (offer.get(0).quantity == bid_max.getQuantity()) {
 						System.out.println("Bid w bid id: " + bid.get(bid.size() - 1).bidId
 								+ "has been matched w offerId: " + bid_max.getBidId());
 						
 						ExecutedTable executed=new ExecutedTable();
 						executed.setBidId(bid_max.bidId);
-						executed.setOfferId(offer.get(offer.size() - 1).offerId);
+						executed.setOfferId(offer.get(0).offerId);
 						executed.setPrice(bid_max.price);
-						executed.setQuantity((offer.get(offer.size() - 1)).quantity);
+						executed.setQuantity((offer.get(0)).quantity);
 						executed.setDate(new Date());
 						executeddao.save(executed);
 						
 						ltp=bid_max.price;
-						ltq=offer.get(offer.size() - 1).quantity;
+						ltq=offer.get(0).quantity;
 						
-						offer.remove(offer.size() - 1);
+						offer.remove(0);
 						bid.removeIf(obj -> obj.bidId == bid_max.getBidId());
 						bidcount--;
 						offercount--;
@@ -1112,7 +1262,7 @@ public class OMS_Service implements IBidService, IOfferService
 //						qty_rem=0;
 						break;
 
-					} else if (offer.get(offer.size() - 1).quantity > bid_max.getQuantity()) {
+					} else if (offer.get(0).quantity > bid_max.getQuantity()) {
 						int qty_bid = 0;
 		
 						for (BidTable b : bid) {//bid_max
@@ -1124,30 +1274,31 @@ public class OMS_Service implements IBidService, IOfferService
 							else
 							qty_bid += b.quantity;
 						}
-						if (qty_bid < offer.get(offer.size() - 1).quantity) {
+						if (qty_bid < offer.get(0).quantity) {
 							System.out.println("Bid id: " + bid.get(bid.size() - 1).bidId
 									+ "rejected since the quantity can't be satisfied");
 							
 							RejectedTable rejected=new RejectedTable();
 							rejected.setBid_offer("offer");
 							rejected.setDate(new Date());
-							rejected.setOrderType(offer.get(offer.size() - 1).orderType);
-							rejected.setPrice(offer.get(offer.size() - 1).price);
-							rejected.setQuantity(offer.get(offer.size() - 1).quantity);
+							rejected.setOrderType(offer.get(0).orderType);
+							rejected.setPrice(offer.get(0).price);
+							rejected.setQuantity(offer.get(0).quantity);
+							rejected.setAon(offer.get(0).aon);
 							rejecteddao.save(rejected);
 							
-							offer.remove(offer.size() - 1);
+							offer.remove(0);
 							offercount--;
 							break;
 						} else {
 							System.out.println("Partial execution Offer w bid id: " + bid_max.getBidId()
 									+ "has been matched w offerId: " + bid.get(bid.size() - 1).bidId);
-							int qty_rem = offer.get(offer.size() - 1).quantity - bid_max.getQuantity();
-							offer.get(offer.size() - 1).quantity = qty_rem;
+							int qty_rem = offer.get(0).quantity - bid_max.getQuantity();
+							offer.get(0).quantity = qty_rem;
 							
 							ExecutedTable executed=new ExecutedTable();
 							executed.setBidId(bid_max.bidId);
-							executed.setOfferId(offer.get(offer.size() - 1).offerId);
+							executed.setOfferId(offer.get(0).offerId);
 							executed.setPrice(bid_max.price);
 							executed.setQuantity(bid_max.getQuantity());
 							executed.setDate(new Date());
@@ -1162,16 +1313,16 @@ public class OMS_Service implements IBidService, IOfferService
 
 //							System.out.println("Partial execution Offer w bid id: " + bid_max.getBidId()
 //									+ "has been matched w offerId: " + bid.get(bid.size() - 1).bidId);
-//							int qty_rem = offer.get(offer.size() - 1).quantity - bid_max.getQuantity();
-//							offer.get(offer.size() - 1).quantity = qty_rem;
+//							int qty_rem = offer.get(0).quantity - bid_max.getQuantity();
+//							offer.get(0).quantity = qty_rem;
 //							bid.removeIf(obj -> obj.bidId == bid_max.getBidId());
 //							bidcount--;
 
-					} else if (offer.get(offer.size() - 1).quantity < bid_max.getQuantity() && bid_max.aon.equals("No")) {
+					} else if (offer.get(0).quantity < bid_max.getQuantity() && bid_max.aon.equals("No")) {
 //						System.out.println("loop :");
 						System.out.println("Bid w bid id: " + bid.get(bid.size() - 1).bidId
 								+ "has been matched w offerId: " + bid_max.getBidId());
-						int qty_rem = bid_max.getQuantity() - offer.get(offer.size() - 1).quantity;
+						int qty_rem = bid_max.getQuantity() - offer.get(0).quantity;
 						bid_max.setQuantity(qty_rem);
 //						Bid bid_og=bid.get(p -> p.user.name.equals("Peter")
 						for (BidTable b: bid) {
@@ -1182,22 +1333,22 @@ public class OMS_Service implements IBidService, IOfferService
 						
 						ExecutedTable executed=new ExecutedTable();
 						executed.setBidId(bid_max.bidId);
-						executed.setOfferId(offer.get(offer.size() - 1).offerId);
+						executed.setOfferId(offer.get(0).offerId);
 						executed.setPrice(bid_max.price);
-						executed.setQuantity((offer.get(offer.size() - 1)).quantity);
+						executed.setQuantity(offer.get(0).quantity);
 						executed.setDate(new Date());
 						executeddao.save(executed);
 						
 						ltp=bid_max.price;
-						ltq=offer.get(offer.size() - 1).quantity;
+						ltq=offer.get(0).quantity;
 						
-						offer.remove(offer.size() - 1);
+						offer.remove(0);
 						offercount--;
 
 						flag1 = 1;
 						break;
 					}
-					else if (offer.get(offer.size() - 1).quantity < bid_max.getQuantity() && bid_max.aon.equals("Yes") )
+					else if (offer.get(0).quantity < bid_max.getQuantity() && bid_max.aon.equals("Yes") )
 					{
 						
 //						System.out.println("dei dei 1 "+i.hasNext()+"i="+i.toString());
@@ -1208,13 +1359,14 @@ public class OMS_Service implements IBidService, IOfferService
 							RejectedTable rejected=new RejectedTable();
 							rejected.setBid_offer("offer");
 							rejected.setDate(new Date());
-							rejected.setOrderType(offer.get(offer.size() - 1).orderType);
-							rejected.setPrice(offer.get(offer.size() - 1).price);
-							rejected.setQuantity(offer.get(offer.size() - 1).quantity);
+							rejected.setOrderType(offer.get(0).orderType);
+							rejected.setPrice(offer.get(0).price);
+							rejected.setQuantity(offer.get(0).quantity);
+							rejected.setAon(offer.get(0).aon);
 							rejecteddao.save(rejected);
 							
 							
-							offer.remove(offer.size() - 1);
+							offer.remove(0);
 							offercount--;
 							break;
 						}
@@ -1228,7 +1380,7 @@ public class OMS_Service implements IBidService, IOfferService
 
 //					if(flag1==0)
 //					{
-//						System.out.println("No match found for offer id: " + offer.get(offer.size() - 1).offerId
+//						System.out.println("No match found for offer id: " + offer.get(0).offerId
 //								+ " Entering into offer pending list");
 //					}
 			}
@@ -1236,3 +1388,7 @@ public class OMS_Service implements IBidService, IOfferService
 		}
 	}
 }
+
+
+
+

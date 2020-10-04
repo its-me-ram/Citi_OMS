@@ -90,7 +90,7 @@ public double getltp() {
 //}
 
 @RequestMapping(value="/match",method = RequestMethod.GET)
-public ResponseEntity<List<Double>> Match()
+public ResponseEntity<List<String>> Match()
 {
 	System.out.println("Done!!***************");
 	
@@ -99,20 +99,23 @@ public ResponseEntity<List<Double>> Match()
 	rdao.deleteAll();
 	bdao.deleteAll();
 	odao.deleteAll();
+	ser.offercount=0;
+	ser.bidcount=0;
+	
 	
 	ser.OrderBook();
 	
-	List<Double> l=new ArrayList<>();
-	l.add(OMS_Service.ltp);
-	l.add(OMS_Service.ltq);
+List<String> l=new ArrayList<>();
+	l.add("LTP:" + String.valueOf(OMS_Service.ltp));
+	l.add("\t LTQ:" + String.valueOf(OMS_Service.ltq));
 	double up_circuit=OMS_Service.ltp*1.10;
 	double low_circuit=OMS_Service.ltp*0.90;
-	l.add(up_circuit);
-	l.add(low_circuit);
+	l.add("\t UC:"+String.valueOf(up_circuit));
+	l.add("\t LC:"+String.valueOf(low_circuit));
 	
 	OMS_Service.separatedata();
 	
-	ResponseEntity<List<Double>> response=new ResponseEntity<List<Double>>(l,HttpStatus.OK);
+	ResponseEntity<List<String>> response=new ResponseEntity<List<String>>(l,HttpStatus.OK);
 	return response;
 }
 
@@ -121,6 +124,7 @@ public ResponseEntity<List<Double>> Match()
 public void GenerateOrders()
 {
 	ser.loaddata();
+	ser.export_to_excel();
 }
 
 //to get all orders from table
